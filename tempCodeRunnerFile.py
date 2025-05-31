@@ -1,0 +1,1 @@
+/Users/mn.ali9/Documents/Generative-AI-for-Annotated-Medical-Imaging/data
