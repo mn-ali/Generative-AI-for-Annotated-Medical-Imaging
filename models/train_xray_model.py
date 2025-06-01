@@ -1,7 +1,5 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,7 +7,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import models
 from sklearn.metrics import f1_score
-from utils.data_loader import get_dataloaders
+from data_loader_xray import get_dataloaders
 from tqdm import tqdm
 
 
