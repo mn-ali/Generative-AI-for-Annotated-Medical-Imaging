@@ -3,11 +3,10 @@ import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from sklearn.model_selection import train_test_split
-
 import torch
 
-# Map class names to indices
+# ---------- LABEL HANDLING ---------- #
+
 VALID_LABELS = [
     "Atelectasis", "Consolidation", "Infiltration", "Pneumothorax",
     "Edema", "Emphysema", "Fibrosis", "Effusion", "Pneumonia",
@@ -22,60 +21,33 @@ def multi_hot_encode(labels):
             vector[LABEL_TO_INDEX[label]] = 1.0
     return vector
 
-VALID_LABELS = [
-    "Atelectasis", "Consolidation", "Infiltration", "Pneumothorax",
-    "Edema", "Emphysema", "Fibrosis", "Effusion", "Pneumonia",
-    "Pleural_Thickening", "Cardiomegaly", "Nodule", "Mass", "Hernia", "No Finding"
-]
 
-def load_image_labels(csv_path, images_dir):
-    df = pd.read_csv(csv_path)
-    image_paths = []
-    labels_list = []
-
-    for idx, row in df.iterrows():
-        image_name = row['Image Index']
-        labels_raw = row['Finding Labels']
-        image_path = os.path.join(images_dir, image_name)
-
-        if not os.path.exists(image_path):
-            continue  # skip missing files
-
-        # Convert '|' separated string to list
-        labels = labels_raw.split('|') if isinstance(labels_raw, str) else ["No Finding"]
-
-        image_paths.append(image_path)
-        labels_list.append(labels)
-
-        # Print progress every 1000 rows
-        if idx % 1000 == 0:
-            print(f"CSV rows read: {len(df)}")
-            print(f"Images found in directory: {len(os.listdir(images_dir))}")
-            print(f"Image paths collected: {len(image_paths)}")
-
-    return image_paths, labels_list
-
+# ---------- DATASET CLASS ---------- #
 
 class ChestXrayDataset(Dataset):
-    def __init__(self, image_paths, labels, transform=None):
-        self.image_paths = image_paths
-        self.labels = labels
+    def __init__(self, dataframe, images_dir, transform=None):
+        self.df = dataframe
+        self.images_dir = images_dir
         self.transform = transform
 
     def __len__(self):
-        return len(self.image_paths)
+        return len(self.df)
 
     def __getitem__(self, idx):
-        image = Image.open(self.image_paths[idx]).convert('RGB')
-        label_list = self.labels[idx]
+        row = self.df.iloc[idx]
+        image_path = os.path.join(self.images_dir, row["Image Index"])
+        image = Image.open(image_path).convert("RGB")
+
+        labels = row["Finding Labels"].split('|') if isinstance(row["Finding Labels"], str) else ["No Finding"]
+        label_tensor = multi_hot_encode(labels)
 
         if self.transform:
             image = self.transform(image)
 
-        label_tensor = multi_hot_encode(label_list)
-
         return image, label_tensor
 
+
+# ---------- TRANSFORMS ---------- #
 
 def get_transforms(image_size=224):
     return transforms.Compose([
@@ -86,34 +58,45 @@ def get_transforms(image_size=224):
     ])
 
 
-def get_dataloaders(csv_path, images_dir, batch_size=32, image_size=224):
-    image_paths, labels = load_image_labels(csv_path, images_dir)
+# ---------- LOADING OFFICIAL SPLITS ---------- #
+
+def load_official_split(csv_path, images_dir, train_val_list, test_list, batch_size=32, image_size=224):
+    df = pd.read_csv(csv_path)
+
+    with open(train_val_list, 'r') as f:
+        train_val_files = set(line.strip() for line in f)
+
+    with open(test_list, 'r') as f:
+        test_files = set(line.strip() for line in f)
+
+    df_train_val = df[df["Image Index"].isin(train_val_files)].reset_index(drop=True)
+    df_test = df[df["Image Index"].isin(test_files)].reset_index(drop=True)
+
     transform = get_transforms(image_size)
 
-    train_paths, val_paths, train_labels, val_labels = train_test_split(
-        image_paths, labels, test_size=0.2, random_state=42
-    )
-
-    train_dataset = ChestXrayDataset(train_paths, train_labels, transform)
-    val_dataset = ChestXrayDataset(val_paths, val_labels, transform)
+    train_dataset = ChestXrayDataset(df_train_val, images_dir, transform)
+    test_dataset = ChestXrayDataset(df_test, images_dir, transform)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    return train_loader, val_loader
+    return train_loader, test_loader
 
+
+# ---------- ENTRY POINT ---------- #
 
 if __name__ == "__main__":
-    csv_path = "data/processed/filtered_metadata.csv"
-    images_dir = "data/raw/xray_dataset/images"  # all images merged here
+    csv_path = "data/raw/xray_dataset/Data_Entry_2017.csv"
+    images_dir = "data/raw/xray_dataset/images/"
+    train_val_list = "data/raw/xray_dataset/train_val_list.txt"
+    test_list = "data/raw/xray_dataset/test_list.txt"
 
-    train_loader, val_loader = get_dataloaders(csv_path, images_dir)
+    train_loader, test_loader = load_official_split(csv_path, images_dir, train_val_list, test_list)
 
     print(f"Training samples: {len(train_loader.dataset)}")
-    print(f"Validation samples: {len(val_loader.dataset)}")
+    print(f"Test samples: {len(test_loader.dataset)}")
 
-    # Print example batch
     for images, labels in train_loader:
-        print(f"Batch image tensor shape: {images.shape}")
+        print(f"Batch image shape: {images.shape}")
         print(f"Batch labels example: {labels[0]}")
         break

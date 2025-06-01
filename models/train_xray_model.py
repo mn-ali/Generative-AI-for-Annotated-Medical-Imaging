@@ -7,14 +7,18 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import models
 from sklearn.metrics import f1_score
-from data_loader_xray import get_dataloaders
+from data_loader_xray import load_official_split
+
 from tqdm import tqdm
 
 
 # Paths
-CSV_PATH = "data/processed/filtered_metadata.csv"
-IMAGE_DIR = "data/raw/xray_dataset/images"
+CSV_PATH = "data/raw/xray_dataset/Data_Entry_2017.csv"
+IMAGE_DIR = "data/raw/xray_dataset/images/"
+TRAIN_VAL_LIST = "data/raw/xray_dataset/train_val_list.txt"
+TEST_LIST = "data/raw/xray_dataset/test_list.txt"
 MODEL_PATH = "models/xray_model.pt"
+
 
 # Config
 BATCH_SIZE = 128
@@ -29,9 +33,17 @@ print(f"Using device: {device}")
 
 
 # Data loaders
-train_loader, val_loader = get_dataloaders(CSV_PATH, IMAGE_DIR, batch_size=BATCH_SIZE, image_size=IMAGE_SIZE)
-print(f"Training samples: {len(train_loader.dataset)}")
-print(f"Validation samples: {len(val_loader.dataset)}")
+TRAIN_VAL_LIST = "data/raw/xray_dataset/train_val_list.txt"
+TEST_LIST = "data/raw/xray_dataset/test_list.txt"
+
+train_loader, val_loader = load_official_split(
+    CSV_PATH,
+    IMAGE_DIR,
+    TRAIN_VAL_LIST,
+    TEST_LIST,
+    batch_size=BATCH_SIZE,
+    image_size=IMAGE_SIZE
+)
 
 # Model setup
 from torchvision.models import resnet18, ResNet18_Weights
