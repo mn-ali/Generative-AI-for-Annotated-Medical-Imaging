@@ -1,7 +1,6 @@
-import pandas as pd
+import kagglehub
 
-# Load the CSV
-df = pd.read_csv("data/processed/filtered_metadata.csv")
+# Download latest version
+path = kagglehub.dataset_download("awsaf49/brats2020-training-data")
 
-# Preview
-print(df.head())
+print("data/raw/mri_dataset", path)
